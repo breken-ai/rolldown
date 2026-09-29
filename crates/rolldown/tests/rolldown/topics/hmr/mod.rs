@@ -1,4 +1,5 @@
 mod add_watch_dir;
 mod add_watch_file;
 mod recover_after_generate_bundle_error;
+mod resend_update_after_failed_patch;
 mod retry_pending_rescans_on_empty_update;

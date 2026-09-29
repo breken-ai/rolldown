@@ -239,6 +239,11 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
         changed_modules.insert(state.idx());
       }
     }
+    for module_id in self.cache.pending_hmr_updates.keys() {
+      if let Some(state) = self.cache.module_id_to_idx.get(module_id) {
+        changed_modules.insert(state.idx());
+      }
+    }
 
     if changed_modules.is_empty() {
       return Ok(
@@ -283,12 +288,24 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
         .collect::<FxHashMap<_, _>>()
     };
 
+    // A pending module keeps its deps from before the failed attempt: that attempt already
+    // merged the edit, so the current table would hide the imports it added.
     let pre_rebuild_static_deps = changed_modules
       .iter()
       .filter_map(|module_idx| {
         let module = self.module_table().modules[*module_idx].as_normal()?;
-        Some((*module_idx, static_deps(module).collect::<FxHashSet<_>>()))
+        let deps = self
+          .cache
+          .pending_hmr_updates
+          .get(&module.id)
+          .cloned()
+          .unwrap_or_else(|| static_deps(module).collect());
+        Some((*module_idx, module.id.clone(), deps))
       })
+      .collect::<Vec<_>>();
+    let pre_rebuild_static_deps = pre_rebuild_static_deps
+      .into_iter()
+      .map(|(module_idx, module_id, deps)| (module_idx, (module_id, deps)))
       .collect::<FxHashMap<_, _>>();
 
     // 1. Do ONE module refetch and cache merge — the update-superset walk (which
@@ -341,6 +358,12 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
 
       let plugin_driver = Arc::clone(&self.plugin_driver);
       self.cache.merge(module_loader_output.into(), &plugin_driver)?;
+      // From here on the edit is in the graph. If this update fails, the next one must send
+      // it again. A failed scan merges nothing and is retried through `pending_rescans`.
+      self.cache.pending_hmr_updates = pre_rebuild_static_deps
+        .values()
+        .map(|(module_id, deps)| (module_id.clone(), deps.clone()))
+        .collect();
 
       let options = Arc::clone(&self.options);
       self.cache.update_defer_sync_data(&options).await?;
@@ -415,7 +438,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
       .chain(new_added_modules.iter())
       .filter_map(|module_idx| self.module_table().modules[*module_idx].as_normal())
       .flat_map(|module| {
-        let before = pre_rebuild_static_deps.get(&module.idx);
+        let before = pre_rebuild_static_deps.get(&module.idx).map(|(_, deps)| deps);
         static_deps(module).filter(move |dep| before.is_none_or(|before| !before.contains(dep)))
       })
       .collect::<FxIndexSet<_>>();
@@ -486,6 +509,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
       client_updates.push(ClientHmrUpdate { client_id: client.client_id.to_string(), update });
     }
 
+    self.cache.pending_hmr_updates.clear();
     Ok(client_updates)
   }
 

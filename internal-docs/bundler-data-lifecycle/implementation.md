@@ -26,6 +26,7 @@ Bundler (long-lived)
   │     ├── importers
   │     ├── modules_with_changed_importers
   │     ├── pending_rescans
+  │     ├── pending_hmr_updates
   │     ├── barrel_state
   │     ├── module_idx_by_abs_path
   │     └── module_idx_by_stable_id
@@ -85,6 +86,7 @@ Bundler.cache (ScanStageCache) ──(move)──> Bundle.cache (temporary holde
 | `importers`                      | Reverse dependency graph                                                                      |
 | `modules_with_changed_importers` | Modules whose `importers` records a partial scan mutated; drained by `merge`                  |
 | `pending_rescans`                | Work queue: files of an aborted (and reverted) partial scan; retried by the next partial scan |
+| `pending_hmr_updates`            | Changed modules of an HMR update that failed after merging; sent again by the next update     |
 | `barrel_state`                   | Barrel export optimization state                                                              |
 | `module_idx_by_abs_path`         | Path-based lookup for watcher                                                                 |
 | `module_idx_by_stable_id`        | Stable ID lookup for HMR                                                                      |

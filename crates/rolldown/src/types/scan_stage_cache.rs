@@ -34,6 +34,10 @@ pub struct ScanStageCache {
   /// Only files the graph still needs are queued; see
   /// [`ModuleLoader::revert_partial_scan`](crate::module_loader::module_loader::ModuleLoader).
   pub pending_rescans: Vec<ResolvedId>,
+  /// Changed modules of HMR updates that failed after merging their rescan, with each
+  /// module's static deps from before that first attempt. Nothing reached the clients, so
+  /// the next update sends them again. Cleared when an update succeeds.
+  pub pending_hmr_updates: FxHashMap<ModuleId, FxHashSet<ModuleIdx>>,
   pub user_defined_entry: FxHashSet<ModuleId>,
   // Usage: Map file path emitted by watcher to corresponding module index
   pub module_idx_by_abs_path: FxHashMap<ArcStr, ModuleIdx>,

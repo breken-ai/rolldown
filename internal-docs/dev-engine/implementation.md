@@ -687,7 +687,13 @@ Then, across all files of the batch:
 
 4. **Failed-scan retry fold** — files queued by an earlier failed scan
    are added before the empty early-return, so a suppressing hook
-   cannot block error recovery.
+   cannot block error recovery. The changed modules of an earlier
+   update that failed after merging its rescan (`pending_hmr_updates`)
+   are added the same way: no client received that update. Each keeps
+   its static deps from before the failed attempt, so the imports that
+   attempt added still count as added (see
+   [hmr/design.md](../hmr/design.md), principle 2). The list is cleared
+   when an update succeeds.
 5. **Unchanged-output suppression** — modules whose re-rendered output
    is byte-identical to the pre-rebuild render are dropped from the
    update. Two exemptions ship anyway: everything after an errored
