@@ -312,6 +312,15 @@ chunk omits a module only if the payload carrying it was acked first.
 Concurrent fetches both carry the shared factory. The result is
 duplicate bytes, which is safe.
 
+Registration keeps the newest copy. Payloads can land out of render
+order: a lazy chunk rendered before an edit can land after the patch
+for that edit. Each payload passes the module's stamp to
+`registerFactory` (a third argument, left out when 0) and to
+`registerGraph` (`stamps`). The runtime drops a factory or a graph row
+older than the one it holds. Equal stamps mean equal code, so the later
+write wins. Entry-chunk preludes carry no stamps and replace rows as
+before. An older runtime ignores the extra argument and field.
+
 ## Failure policy
 
 Full reload is the fallback for these delivery and state failures:

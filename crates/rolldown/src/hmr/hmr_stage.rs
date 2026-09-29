@@ -276,7 +276,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
         .into_par_iter()
         .map(|render_input| {
           let module_idx = render_input.idx;
-          (module_idx, self.render_module_code(render_input, 0, false).0)
+          (module_idx, self.render_module_code(render_input, 0, 0, false).0)
         })
         .collect::<Vec<_>>()
         .into_iter()
@@ -367,7 +367,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
       .into_par_iter()
       .filter_map(|render_input| {
         let module_idx = render_input.idx;
-        let (code, _) = self.render_module_code(render_input, 0, false);
+        let (code, _) = self.render_module_code(render_input, 0, 0, false);
         (pre_rebuild_renders[&module_idx] == code).then_some(module_idx)
       })
       .collect::<Vec<_>>()
@@ -678,6 +678,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
     if let Some(prelude) = crate::hmr::module_graph_delta::render_register_graph_source(
       self.module_table(),
       modules_to_be_updated.iter().copied(),
+      Some(stamp_table),
     ) {
       source_joiner.append_source(prelude);
     }
@@ -686,7 +687,9 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
       .enumerate()
       .flat_map(|(index, render_input)| {
         let affected_module_idx = render_input.idx;
-        let (code, map) = self.render_module_code(render_input, index, true);
+        let stamp = stamp_table
+          .render_time_stamp(self.module_table().modules[affected_module_idx].stable_id().as_str());
+        let (code, map) = self.render_module_code(render_input, index, stamp, true);
 
         let affected_module = &self.module_table().modules[affected_module_idx];
         let Module::Normal(affected_module) = affected_module else {
@@ -808,6 +811,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
     if let Some(prelude) = crate::hmr::module_graph_delta::render_register_graph_source(
       self.module_table(),
       carried_modules.iter().copied(),
+      Some(stamp_table),
     ) {
       source_joiner.append_source(prelude);
     }
@@ -816,7 +820,9 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
       .enumerate()
       .flat_map(|(index, render_input)| {
         let affected_module_idx = render_input.idx;
-        let (code, map) = self.render_module_code(render_input, index, true);
+        let stamp = stamp_table
+          .render_time_stamp(self.module_table().modules[affected_module_idx].stable_id().as_str());
+        let (code, map) = self.render_module_code(render_input, index, stamp, true);
 
         let affected_module = &self.module_table().modules[affected_module_idx];
         let Module::Normal(affected_module) = affected_module else {
@@ -893,12 +899,13 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
   ///
   /// `unique_index` seeds the payload-position-dependent binding suffixes, so two
   /// renders of the same module compare equal only when they pin it to the same
-  /// value. `with_sourcemap: false` skips sourcemap generation even when the
-  /// options ask for one.
+  /// value, and likewise the same `stamp`. `with_sourcemap: false` skips sourcemap
+  /// generation even when the options ask for one.
   fn render_module_code(
     &self,
     render_input: ModuleRenderInput,
     unique_index: usize,
+    stamp: u32,
     with_sourcemap: bool,
   ) -> (String, Option<SourceMap>) {
     let ModuleRenderInput { idx: module_idx, ecma_ast: mut ast } = render_input;
@@ -932,6 +939,7 @@ impl<'a, Fs: FileSystem + Clone + 'static> HmrStage<'a, Fs> {
         re_export_all_dependencies: FxIndexSet::default(),
         generated_static_import_stmts_from_external: FxIndexMap::default(),
         unique_index,
+        stamp,
         named_exports: FxHashMap::default(),
       };
 

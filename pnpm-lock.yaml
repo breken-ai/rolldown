@@ -960,6 +960,12 @@ importers:
         specifier: workspace:*
         version: link:../../..
 
+  packages/test-dev-server/tests/playground/hmr-late-lazy-chunk:
+    devDependencies:
+      '@rolldown/test-dev-server':
+        specifier: workspace:*
+        version: link:../../..
+
   packages/test-dev-server/tests/playground/hmr-lazy-dynamic-import-accept-dep:
     devDependencies:
       '@rolldown/test-dev-server':
