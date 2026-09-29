@@ -696,21 +696,24 @@ Then, across all files of the batch:
    outside the module's own code, so identical output proves nothing).
 6. **Refetch and stamp** — one partial scan and cache merge. Then the
    stamp table starts a new rebuild number and stamps every changed or
-   newly added module with it (`hmr_stage.rs:371-377`).
+   newly added module with it.
 7. **Superset walk** — `collect_client_update_superset`
-   (`hmr_stage.rs:451`) walks up static and dynamic importers from the
+   (`hmr_stage.rs`) walks up static and dynamic importers from the
    changed modules, stopping at self-accepting modules and at accepting
    importer edges. This is a prediction of what any client's walk may
    re-run; the client makes the real decision (see
    [hmr/design.md](../hmr/design.md)).
 8. **Per-client patch** — for each `ClientHmrInput`, the carried set is
-   `(affected ∖ shipped[C]) ∪ { m : latest[m] > shipped[C][m] }`
-   (`hmr_stage.rs:408-444`): modules the client lacks, plus every
-   module the client holds at an older stamp. `render_hmr_patch`
-   returns `HmrUpdate::Noop` when nothing is carried and no id changed
-   (`hmr_stage.rs:727-729`); otherwise an `HmrPatch` with `changed_ids`,
-   `carried`, and `seq: 0` — the dev engine assigns the real `seq`
-   afterwards.
+   `(affected ∖ shipped[C]) ∪ { m : latest[m] > shipped[C][m] }`: modules
+   the client lacks, plus every module the client holds at an older
+   stamp. When the rebuild added static imports, the carried set also
+   gets the part of their static closure the client does not hold
+   (`collect_unheld_sync_deps`, which reads the ship map and the
+   boot-evaluated map; see [hmr/design.md](../hmr/design.md),
+   principle 2). `render_hmr_patch` returns `HmrUpdate::Noop` when
+   nothing is carried and no id changed; otherwise an `HmrPatch` with
+   `changed_ids`, `carried`, and `seq: 0` — the dev engine assigns the
+   real `seq` afterwards.
 
 The superset walk (`collect_client_update_superset` in `hmr_stage.rs`)
 starts from the changed modules and follows importer edges (static and
